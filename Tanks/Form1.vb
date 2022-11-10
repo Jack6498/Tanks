@@ -22,17 +22,19 @@ Public Class Form1
     Dim angle As Integer
     Dim velocity As Double
     Dim points(21) As PointF
-    Dim tank, shot As Rectangle
+    Dim tank, shot, sun, aimCircle As Rectangle
 #End Region'contains Variables for calculations and rendering
 
 #Region "game Variables"
     Dim animation As Boolean
     Dim r As Integer = 5 'x position of the tank shot for calcuations
-    Dim tp As Integer 'what position is the tank at
+    Dim tp As Integer = 1 'what position is the tank at
+    Dim mousepos, tankPosAdjusted As New Point
+    Shadows font As New Font("Arial", 16)
 #End Region 'contains vaiables for game mechanics
 
-
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+
 #Region "setup timers and graphics"
         g = Me.CreateGraphics()
         bm = New Bitmap(Me.Width, Me.Height)
@@ -60,18 +62,24 @@ Public Class Form1
 
 #Region "init positons"
         tank = New Rectangle(New Point(50, Me.Height - 120), New Size(New Point(30, 20)))
-        shot = New Rectangle(New Point(6, 6), New Size(5, 5))
+        shot = New Rectangle(New Point(points(tp).X, points(tp).Y), New Size(5, 5))
+        sun = New Rectangle(New Point(-100, -100), New Size(200, 200))
+        aimCircle = New Rectangle(New Point(tank.Location.X - 50, tank.Location.Y - 50), New Size(100, 100))
+
 #End Region
 
+#Region "Debug"
         'MessageBox.Show("y: " & points(i).Y & " x: " & points(i).Y & " location " & i)
         ' Next
+#End Region
+
 
     End Sub
 
     Private Sub Form1_KeyDown(sender As Object, e As KeyEventArgs) Handles MyBase.KeyDown
         If (e.KeyCode = Keys.A) And (animation = False) Then
             tp += 1
-            MessageBox.Show("hello")
+
         ElseIf (e.KeyCode = Keys.D) And (animation = False) Then
             tp -= 1
         ElseIf e.KeyCode = Keys.Space Then
@@ -82,24 +90,54 @@ Public Class Form1
             animation = True
         End If
 
-        tank.Location = New Point(points(tp).X, points(tp).Y)
+#Region "keep Tank on screen"
+        If (tp >= 0) And (tp <= points.Length) Then
+            tank.Location = New Point(points(tp).X, points(tp).Y)
+        ElseIf (tp <= 0) Then
+            tank.Location = New Point(points(1).X, points(1).Y)
+        ElseIf (tp >= points.Length) Then
+            tank.Location = New Point(points(points.Length).X, points(points.Length).Y)
+        End If
+#End Region
+
+
     End Sub
 
 
 
-    Private Sub animationTimer_Tick(sender As Object, e As EventArgs) Handles animationTimer.Tick
+    Private Sub AnimationTimer_Tick(sender As Object, e As EventArgs) Handles animationTimer.Tick
 
-        shootAnimation()
+        ShootAnimation()
 
-        r += 1 'increment calcuated x position of shot
+        r += 1 'increment calcuated x position of shot (determines how many shot frames are calculated)
 
     End Sub
 
     Private Sub FrameTime_Tick(sender As Object, e As EventArgs) Handles FrameTime.Tick
-        drawOnTick()
+        tankPosAdjusted = New Point(tank.Location.X - (tank.Width / 2), tank.Location.Y - (tank.Height / 2))
+        velocity = Distance(tankPosAdjusted, mousepos)
+        If velocity > 200 Then
+            velocity = 200
+        End If
+        angle = CalculateAngle(mousepos, tankPosAdjusted)
+        DrawOnTick()
+
     End Sub
 
-    Private Sub shootAnimation()
+    Private Sub Form1_MouseMove(sender As Object, e As MouseEventArgs) Handles MyBase.MouseMove
+        mousepos = e.Location
+    End Sub
+
+
+
+
+
+#Region "Game Methods"
+    'animates the shot flight
+    ''' <summary>
+    ''' Animates the shot flying through the air
+    ''' </summary>
+    Private Sub ShootAnimation()
 
         'draw tank and ground
         g1.DrawPolygon(pen, points)
@@ -125,32 +163,13 @@ Public Class Form1
         g1.Clear(Color.Blue)
 
     End Sub
-    'game timer for when things are not being shot
-    Private Sub drawOnTick()
 
-#Region "draw Objects to bitmap"
-        'drawing objects to the bitmap 
-        g1.FillEllipse(brush2, New RectangleF(New Point(-100, -100), New Size(200, 200)))
-        g1.FillPolygon(brush1, points)
-        g1.DrawLines(pen, points)
-        g1.DrawRectangle(pen, tank)
-        g1.FillEllipse(brush, New RectangleF(New Point(tank.Location.X - (50), tank.Location.Y - (50)), New Size(100, 100)))
-#End Region
-
-        'load bitmap onto form 
-        g.DrawImage(bm, 0, 0)
-        'clear bitmap to remove old frames
-        g1.Clear(Color.Blue)
-    End Sub
-
-    Private Function calculateBallPath(angle As Double, velocity As Double, xcoor As Integer)
-        Dim ycoor As Double
-        Dim radians = angle * (Math.PI / 180)
-        ycoor = (xcoor * Math.Tan(radians)) - ((9.8 * (xcoor ^ 2)) / (2 * (velocity) ^ 2 * (Math.Cos(radians) ^ 2)))
-        Return -ycoor
-    End Function
-
-    'there is no way to do polygon collision detection natively in vb so I am making my own
+    'ground collision detection
+    ''' <summary>
+    ''' Checks if there is a line between a point and a line given the lines start and end coordinates
+    ''' </summary>
+    ''' <param name="ptstart"></param>
+    ''' <param name="ptend"></param>
     Private Sub PolygonDetection(ptstart As Point, ptend As Point)
         Dim lineVec As Vector2 = New Vector2(ptend.X - ptstart.X, ptend.Y - ptstart.Y)
         Dim lineLength As Double = lineVec.Length
@@ -158,4 +177,70 @@ Public Class Form1
         Dim perpLineVec As Vector2 = New Vector2(-lineVec.Y, lineVec.X)
 
     End Sub
+
+    'calculates the path of the ball
+    ''' <summary>
+    ''' Calculates the shot's y coordinate given the angle, velocity, and x coordinate.
+    ''' </summary>
+    ''' <param name="angle"></param>
+    ''' <param name="velocity"></param>
+    ''' <param name="xcoor"></param>
+    ''' <returns></returns>\
+    ''' 
+    Private Function calculateBallPath(angle As Double, velocity As Double, xcoor As Integer)
+        Dim ycoor As Double
+        Dim radians = angle * (Math.PI / 180)
+        ycoor = (xcoor * Math.Tan(radians)) - ((9.8 * (xcoor ^ 2)) / (2 * (velocity) ^ 2 * (Math.Cos(radians) ^ 2)))
+        Return -ycoor
+    End Function
+
+    'draws objects while aiming
+    ''' <summary>
+    ''' Draws objects during non-shooting gameplay
+    ''' </summary>
+    Private Sub DrawOnTick()
+
+        g1.FillEllipse(brush2, sun)
+        g1.FillPolygon(brush1, points)
+        g1.DrawLines(pen, points)
+        g1.DrawRectangle(pen, tank)
+        g1.FillEllipse(brush, aimCircle)
+        g1.DrawString("Angle: " + angle.ToString + " Power:" + velocity.ToString(), font, Brushes.Black, New Point(mousepos.X + 10, mousepos.Y + 10))
+
+        'load bitmap onto form 
+        g.DrawImage(bm, 0, 0)
+        'clear bitmap to remove old frames
+        g1.Clear(Color.Blue)
+    End Sub
+
+    'calculate angle
+    ''' <summary>
+    ''' Calculates angle based on Tank and Cursor Position
+    ''' </summary>
+    ''' <param name="mousepos"></param>
+    ''' <param name="tankpos"></param>
+    ''' <returns>Angle</returns>
+    Private Function CalculateAngle(mousepos As Point, tankpos As Point)
+        Dim horizontalDiff, VerticleDiff As Double
+        Dim angle As Single
+        horizontalDiff = mousepos.X - tankpos.X
+        VerticleDiff = mousepos.Y - tankpos.Y
+        angle = (Math.Atan2(horizontalDiff, VerticleDiff)) * (180 / Math.PI)
+
+        Return angle
+    End Function
+
+    'Distance Formula
+    ''' <summary>
+    ''' Finds the distance between 2 points
+    ''' </summary>
+    ''' <param name="p1"></param>
+    ''' <param name="p2"></param>
+    ''' <returns>Distance between 2 points</returns>
+    Private Function Distance(p1 As Point, p2 As Point)
+        Dim dist As Single
+        dist = Math.Sqrt(((p1.X - p2.X) ^ 2) + ((p1.Y - p2.Y) ^ 2))
+        Return dist
+    End Function
+#End Region
 End Class
