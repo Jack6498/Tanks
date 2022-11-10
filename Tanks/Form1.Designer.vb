@@ -35,7 +35,7 @@ Partial Class Form1
         'animationTimer
         '
         Me.animationTimer.Enabled = True
-        Me.animationTimer.Interval = 60
+        Me.animationTimer.Interval = 30
         '
         'Label1
         '
@@ -54,7 +54,7 @@ Partial Class Form1
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.ClientSize = New System.Drawing.Size(796, 709)
         Me.Controls.Add(Me.Label1)
-        Me.Margin = New System.Windows.Forms.Padding(2, 2, 2, 2)
+        Me.Margin = New System.Windows.Forms.Padding(2)
         Me.Name = "Form1"
         Me.Text = "Form1"
         Me.WindowState = System.Windows.Forms.FormWindowState.Maximized

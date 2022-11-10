@@ -12,10 +12,13 @@ Public Class Form1
 #Region "graphics"
     Dim g, g1 As Graphics
     Dim bm As Bitmap
-    Dim pen As Pen = New Pen(Color.Green, 5)
+    Dim pen As Pen = New Pen(Color.Black, 5)
+    Dim pen1 As New Pen(Color.Green, 3)
     Dim brush1 As New SolidBrush(Color.SaddleBrown)
     Dim brush2 As New SolidBrush(Color.Yellow)
+    Dim brush3 As New SolidBrush(Color.Red)
     Dim brush As SolidBrush = New SolidBrush(Color.FromArgb(50, Color.White))
+    Dim path As New GraphicsPath()
 #End Region 'contains all graphics object variables
 
 #Region "Rendering Varables"
@@ -42,6 +45,7 @@ Public Class Form1
         animation = False
         animationTimer.Enabled = True
         animationTimer.Stop()
+        path.AddLines(points)
 #End Region
 
 #Region "ground Generation"
@@ -64,7 +68,7 @@ Public Class Form1
         tank = New Rectangle(New Point(50, Me.Height - 120), New Size(New Point(30, 20)))
         shot = New Rectangle(New Point(points(tp).X, points(tp).Y), New Size(5, 5))
         sun = New Rectangle(New Point(-100, -100), New Size(200, 200))
-        aimCircle = New Rectangle(New Point(tank.Location.X - 50, tank.Location.Y - 50), New Size(100, 100))
+        aimCircle = New Rectangle(New Point(tank.Location.X - 50, tank.Location.Y - 50), New Size(200, 200))
 
 #End Region
 
@@ -78,13 +82,13 @@ Public Class Form1
 
     Private Sub Form1_KeyDown(sender As Object, e As KeyEventArgs) Handles MyBase.KeyDown
         If (e.KeyCode = Keys.A) And (animation = False) Then
-            tp += 1
+            tp -= 1
 
         ElseIf (e.KeyCode = Keys.D) And (animation = False) Then
-            tp -= 1
+            tp += 1
         ElseIf e.KeyCode = Keys.Space Then
             FrameTime.Stop()
-            shot.Location = New Point(1, 1)
+            shot.Location = New Point(50, 50)
             r = 1
             animationTimer.Start()
             animation = True
@@ -92,11 +96,11 @@ Public Class Form1
 
 #Region "keep Tank on screen"
         If (tp >= 0) And (tp <= points.Length) Then
-            tank.Location = New Point(points(tp).X, points(tp).Y)
+            tank.Location = New Point(points(tp).X - (tank.Width / 2), points(tp).Y - (tank.Height))
         ElseIf (tp <= 0) Then
-            tank.Location = New Point(points(1).X, points(1).Y)
+            tank.Location = New Point(points(1).X - (tank.Width / 2), points(1).Y - (tank.Height))
         ElseIf (tp >= points.Length) Then
-            tank.Location = New Point(points(points.Length).X, points(points.Length).Y)
+            tank.Location = New Point(points(points.Length).X - (tank.Width / 2), points(points.Length).Y - (tank.Height))
         End If
 #End Region
 
@@ -109,15 +113,16 @@ Public Class Form1
 
         ShootAnimation()
 
-        r += 1 'increment calcuated x position of shot (determines how many shot frames are calculated)
+        r += 2 'increment calcuated x position of shot (determines how many shot frames are calculated)
 
     End Sub
 
     Private Sub FrameTime_Tick(sender As Object, e As EventArgs) Handles FrameTime.Tick
-        tankPosAdjusted = New Point(tank.Location.X - (tank.Width / 2), tank.Location.Y - (tank.Height / 2))
+        tankPosAdjusted = New Point(tank.Location.X + (tank.Width / 2), tank.Location.Y + (tank.Height / 2))
+        aimCircle.Location = New Point(tank.Location.X - 100, tank.Location.Y - 100)
         velocity = Distance(tankPosAdjusted, mousepos)
-        If velocity > 200 Then
-            velocity = 200
+        If velocity > 100 Then
+            velocity = 100
         End If
         angle = CalculateAngle(mousepos, tankPosAdjusted)
         DrawOnTick()
@@ -125,7 +130,10 @@ Public Class Form1
     End Sub
 
     Private Sub Form1_MouseMove(sender As Object, e As MouseEventArgs) Handles MyBase.MouseMove
-        mousepos = e.Location
+        If animation = False Then
+            mousepos = e.Location
+        End If
+
     End Sub
 
 
@@ -140,42 +148,44 @@ Public Class Form1
     Private Sub ShootAnimation()
 
         'draw tank and ground
-        g1.DrawPolygon(pen, points)
-        g1.DrawRectangle(pen, tank)
+        g1.FillPolygon(brush1, points)
+
+        g1.FillRectangle(brush3, tank)
 
 #Region "calculate shot"
-        If shot.Location.Y < points(1).Y Then
-            shot.Location = New Point(tank.Location.X + r, tank.Location.Y + calculateBallPath(angle, velocity, r))
-            Label1.Text = shot.Location.Y
-            g1.DrawEllipse(pen, shot)
 
-        Else
-            animationTimer.Stop()
-            g1.Clear(Color.White)
-            FrameTime.Start()
-            animation = False
+        If angle > 0 Then
+                shot.Location = New Point(tank.Location.X + r, tank.Location.Y + calculateBallPath(90 + angle, velocity, r))
+            Else
+                shot.Location = New Point(tank.Location.X - r, tank.Location.Y + calculateBallPath(90 + angle, velocity, -r))
+            End If
 
-        End If
+        g1.DrawEllipse(pen1, shot)
+        g1.DrawPath(pen, path)
+
 #End Region
 
+        GetColor(shot.Location)
+        If bm.GetPixel(shot.Location.X + 10, shot.Location.Y + 10) = Color.Black Then
+            MessageBox.Show("works")
+        End If
         'reset
         g.DrawImage(bm, 0, 0)
-        g1.Clear(Color.Blue)
+
 
     End Sub
 
     'ground collision detection
     ''' <summary>
-    ''' Checks if there is a line between a point and a line given the lines start and end coordinates
+    ''' Checks if a pixel is a certain color
     ''' </summary>
-    ''' <param name="ptstart"></param>
-    ''' <param name="ptend"></param>
-    Private Sub PolygonDetection(ptstart As Point, ptend As Point)
-        Dim lineVec As Vector2 = New Vector2(ptend.X - ptstart.X, ptend.Y - ptstart.Y)
-        Dim lineLength As Double = lineVec.Length
-        lineVec /= lineLength
-        Dim perpLineVec As Vector2 = New Vector2(-lineVec.Y, lineVec.X)
+    ''' <param name="pt"></param>
+    Private Sub GetColor(pt As Point)
+        bm.SetPixel(pt.X + 10, pt.Y + 10, Color.Black)
 
+
+
+        Label1.Text = "x:" + pt.X.ToString + " Y:" + pt.Y.ToString()
     End Sub
 
     'calculates the path of the ball
@@ -203,8 +213,9 @@ Public Class Form1
         g1.FillEllipse(brush2, sun)
         g1.FillPolygon(brush1, points)
         g1.DrawLines(pen, points)
-        g1.DrawRectangle(pen, tank)
+        g1.FillRectangle(brush3, tank)
         g1.FillEllipse(brush, aimCircle)
+        g1.DrawPath(pen, path)
         g1.DrawString("Angle: " + angle.ToString + " Power:" + velocity.ToString(), font, Brushes.Black, New Point(mousepos.X + 10, mousepos.Y + 10))
 
         'load bitmap onto form 
